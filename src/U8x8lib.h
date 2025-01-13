@@ -153,6 +153,12 @@
 #endif
 #endif
 
+#ifdef ARDUINO
+#ifdef U8X8_HAVE_HW_SPI
+#include <SPI.h>
+extern "C" void u8x8_setSpiPtr(SPIClass* spi);
+#endif
+#endif
 
 extern "C" uint8_t u8x8_gpio_and_delay_arduino(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 extern "C" uint8_t u8x8_byte_arduino_8bit_8080mode(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);

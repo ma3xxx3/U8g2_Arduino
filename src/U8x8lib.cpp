@@ -185,8 +185,16 @@ extern "C" uint8_t u8x8_gpio_and_delay_arduino(u8x8_t *u8x8, uint8_t msg, uint8_
 }
 #endif // U8X8_USE_PINS
 
+/*=============================================*/
 
+#ifdef U8X8_HAVE_HW_SPI
+static SPIClass* _spi = &SPI;
 
+extern "C" void u8x8_setSpiPtr(SPIClass* spi)
+{
+  _spi = spi;
+}
+#endif
 
 /*=============================================*/
 /*=== 3 WIRE SOFTWARE SPI ===*/
@@ -728,7 +736,7 @@ static void arduino_hw_spi_3w_flush(void)
   uint8_t i;
   for(i = 0; i <= arduino_hw_spi_3w_bytepos; i++) 
   {
-      SPI.transfer(arduino_hw_spi_3w_buffer[i]);
+      _spi->transfer(arduino_hw_spi_3w_buffer[i]);
   }
 #endif
 }
@@ -787,23 +795,23 @@ extern "C" uint8_t u8x8_byte_arduino_3wire_hw_spi(u8x8_t *u8x8, uint8_t msg, uin
 	u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
       
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
-	/* ESP32 has the following begin: SPI.begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
+	/* ESP32 has the following begin: _spi->begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
 	/* not sure about ESP8266 */
         /* apply bugfix from PR 2123 */
 	//if ( u8x8->pins[U8X8_PIN_I2C_CLOCK] != U8X8_PIN_NONE && u8x8->pins[U8X8_PIN_I2C_DATA] != U8X8_PIN_NONE )
         if ( u8x8->pins[U8X8_PIN_SPI_CLOCK] != U8X8_PIN_NONE && u8x8->pins[U8X8_PIN_SPI_DATA] != U8X8_PIN_NONE )
         {
-	  /* SPI.begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
+	  /* _spi->begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
 	  /* actually MISO is not used, but what else could be used here??? */
-	  //SPI.begin(u8x8->pins[U8X8_PIN_I2C_CLOCK], MISO, u8x8->pins[U8X8_PIN_I2C_DATA]);
-          SPI.begin(u8x8->pins[U8X8_PIN_SPI_CLOCK], MISO, u8x8->pins[U8X8_PIN_SPI_DATA]);
+	  //_spi->begin(u8x8->pins[U8X8_PIN_I2C_CLOCK], MISO, u8x8->pins[U8X8_PIN_I2C_DATA]);
+          _spi->begin(u8x8->pins[U8X8_PIN_SPI_CLOCK], MISO, u8x8->pins[U8X8_PIN_SPI_DATA]);
 	}
 	else
 	{
-	  SPI.begin();
+	  _spi->begin();
 	}
 #else
-	SPI.begin();
+	_spi->begin();
 #endif 
       break;
       
@@ -823,18 +831,18 @@ extern "C" uint8_t u8x8_byte_arduino_3wire_hw_spi(u8x8_t *u8x8, uint8_t msg, uin
             }
       
 #if ARDUINO >= 10600
-            SPI.beginTransaction(
+            _spi->beginTransaction(
                 SPISettings(u8x8->bus_clock, MSBFIRST, internal_spi_mode));
 #else
-            SPI.begin();
+            _spi->begin();
             if (u8x8->display_info->sck_pulse_width_ns < 70)
-                SPI.setClockDivider(SPI_CLOCK_DIV2);
+                _spi->setClockDivider(SPI_CLOCK_DIV2);
             else if (u8x8->display_info->sck_pulse_width_ns < 140)
-                SPI.setClockDivider(SPI_CLOCK_DIV4);
+                _spi->setClockDivider(SPI_CLOCK_DIV4);
             else
-                SPI.setClockDivider(SPI_CLOCK_DIV8);
-            SPI.setDataMode(internal_spi_mode);
-            SPI.setBitOrder(MSBFIRST);
+                _spi->setClockDivider(SPI_CLOCK_DIV8);
+            _spi->setDataMode(internal_spi_mode);
+            _spi->setBitOrder(MSBFIRST);
 #endif
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_enable_level);  
             u8x8->gpio_and_delay_cb(
@@ -856,9 +864,9 @@ extern "C" uint8_t u8x8_byte_arduino_3wire_hw_spi(u8x8_t *u8x8, uint8_t msg, uin
             u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
 
 #if ARDUINO >= 10600
-            SPI.endTransaction();
+            _spi->endTransaction();
 #else
-            SPI.end();
+            _spi->end();
 #endif
         break;
 
@@ -896,17 +904,17 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t a
 
 #if defined(ESP_PLATFORM)
       //T.M.L 2023-02-28: use the block transfer function on ESP, which does not overwrite the buffer.
-      SPI.writeBytes((uint8_t*)arg_ptr, arg_int);  
+      _spi->writeBytes((uint8_t*)arg_ptr, arg_int);  
 #else    
       // 1.6.5 offers a block transfer, but the problem is, that the
       // buffer is overwritten with the incoming data
       // so it can not be used...
-      // SPI.transfer((uint8_t *)arg_ptr, arg_int);
+      // _spi->transfer((uint8_t *)arg_ptr, arg_int);
       
       data = (uint8_t *)arg_ptr;
       while( arg_int > 0 )
       {
-        SPI.transfer((uint8_t)*data);
+        _spi->transfer((uint8_t)*data);
         data++;
         arg_int--;
       }
@@ -922,30 +930,30 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t a
       /* no wait required here */
       
       /* for SPI: setup correct level of the clock signal */
-      // removed, use SPI.begin() instead: pinMode(11, OUTPUT);
-      // removed, use SPI.begin() instead: pinMode(13, OUTPUT);
-      // removed, use SPI.begin() instead: digitalWrite(13, u8x8_GetSPIClockPhase(u8x8));
+      // removed, use _spi->begin() instead: pinMode(11, OUTPUT);
+      // removed, use _spi->begin() instead: pinMode(13, OUTPUT);
+      // removed, use _spi->begin() instead: digitalWrite(13, u8x8_GetSPIClockPhase(u8x8));
       
-      /* setup hardware with SPI.begin() instead of previous digitalWrite() and pinMode() calls */
+      /* setup hardware with _spi->begin() instead of previous digitalWrite() and pinMode() calls */
 
 
       /* issue #377 */
       /* issue #378: removed ESP8266 support, which is implemented differently */
 #if defined(ESP_PLATFORM) || defined(ARDUINO_ARCH_ESP32)
-      /* ESP32 has the following begin: SPI.begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
+      /* ESP32 has the following begin: _spi->begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
       /* not sure about ESP8266 */
       if ( u8x8->pins[U8X8_PIN_SPI_CLOCK] != U8X8_PIN_NONE && u8x8->pins[U8X8_PIN_SPI_DATA] != U8X8_PIN_NONE )
       {
-	/* SPI.begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
+	/* _spi->begin(int8_t sck=SCK, int8_t miso=MISO, int8_t mosi=MOSI, int8_t ss=-1); */
 	/* actually MISO is not used, but what else could be used here??? */
-	SPI.begin(u8x8->pins[U8X8_PIN_SPI_CLOCK], MISO, u8x8->pins[U8X8_PIN_SPI_DATA]);
+	_spi->begin(u8x8->pins[U8X8_PIN_SPI_CLOCK], MISO, u8x8->pins[U8X8_PIN_SPI_DATA]);
       }
       else
       {
-	SPI.begin();
+	_spi->begin();
       }
 #else
-      SPI.begin();
+      _spi->begin();
 #endif 
 
       
@@ -968,18 +976,18 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t a
       }
       
 #if ARDUINO >= 10600
-      SPI.beginTransaction(SPISettings(u8x8->bus_clock, MSBFIRST, internal_spi_mode));
+      _spi->beginTransaction(SPISettings(u8x8->bus_clock, MSBFIRST, internal_spi_mode));
 #else
-      SPI.begin();
+      _spi->begin();
       
       if ( u8x8->display_info->sck_pulse_width_ns < 70 )
-	SPI.setClockDivider( SPI_CLOCK_DIV2 );
+	_spi->setClockDivider( SPI_CLOCK_DIV2 );
       else if ( u8x8->display_info->sck_pulse_width_ns < 140 )
-	SPI.setClockDivider( SPI_CLOCK_DIV4 );
+	_spi->setClockDivider( SPI_CLOCK_DIV4 );
       else
-	SPI.setClockDivider( SPI_CLOCK_DIV8 );
-      SPI.setDataMode(internal_spi_mode);
-      SPI.setBitOrder(MSBFIRST);
+	_spi->setClockDivider( SPI_CLOCK_DIV8 );
+      _spi->setDataMode(internal_spi_mode);
+      _spi->setBitOrder(MSBFIRST);
 #endif
       
       u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_enable_level);  
@@ -991,9 +999,9 @@ extern "C" uint8_t u8x8_byte_arduino_hw_spi(u8x8_t *u8x8, uint8_t msg, uint8_t a
       u8x8_gpio_SetCS(u8x8, u8x8->display_info->chip_disable_level);
 
 #if ARDUINO >= 10600
-      SPI.endTransaction();
+      _spi->endTransaction();
 #else
-      SPI.end();
+      _spi->end();
 #endif
 
       break;
@@ -1022,7 +1030,7 @@ extern "C" uint8_t u8x8_byte_arduino_2nd_hw_spi(U8X8_UNUSED u8x8_t *u8x8, U8X8_U
       // 1.6.5 offers a block transfer, but the problem is, that the
       // buffer is overwritten with the incoming data
       // so it can not be used...
-      // SPI.transfer((uint8_t *)arg_ptr, arg_int);
+      // _spi->transfer((uint8_t *)arg_ptr, arg_int);
       
       data = (uint8_t *)arg_ptr;
       while( arg_int > 0 )
@@ -1041,11 +1049,11 @@ extern "C" uint8_t u8x8_byte_arduino_2nd_hw_spi(U8X8_UNUSED u8x8_t *u8x8, U8X8_U
       /* no wait required here */
       
       /* for SPI1: setup correct level of the clock signal */
-      // removed, use SPI.begin() instead: pinMode(11, OUTPUT);
-      // removed, use SPI.begin() instead: pinMode(13, OUTPUT);
-      // removed, use SPI.begin() instead: digitalWrite(13, u8x8_GetSPIClockPhase(u8x8));
+      // removed, use _spi->begin() instead: pinMode(11, OUTPUT);
+      // removed, use _spi->begin() instead: pinMode(13, OUTPUT);
+      // removed, use _spi->begin() instead: digitalWrite(13, u8x8_GetSPIClockPhase(u8x8));
       
-      /* setup hardware with SPI.begin() instead of previous digitalWrite() and pinMode() calls */
+      /* setup hardware with _spi->begin() instead of previous digitalWrite() and pinMode() calls */
       SPI1.begin();	
 
       break;
